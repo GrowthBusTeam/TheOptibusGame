@@ -407,9 +407,12 @@
                 let nx = (p.x-ox-dragOffset)/sz, gx = Math.round(Math.max(0, Math.min(6-selectedBus.len+(selectedBus.isT?1.5:0), nx)));
                 if(canM(selectedBus, gx, selectedBus.y)) { selectedBus.rx = nx; selectedBus.x = gx; }
                 if(selectedBus.isT && selectedBus.x >= 5) {
-                    gameState='win'; document.getElementById('win-modal').classList.remove('hidden');
-                    const score = Math.floor(timeLeft*100);
-                    if(currentUser) addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard'), { ...userData, score: score, timestamp: Date.now() });
+                    if (gameState !== 'win') { // PREVENT MULTIPLE SUBMISSIONS
+                        gameState='win'; 
+                        document.getElementById('win-modal').classList.remove('hidden');
+                        const score = Math.floor(timeLeft*100);
+                        if(currentUser) addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard'), { ...userData, score: score, timestamp: Date.now() });
+                    }
                 }
             } else {
                 let ny = (p.y-oy-dragOffset)/sz, gy = Math.round(Math.max(0, Math.min(6-selectedBus.len, ny)));
