@@ -130,7 +130,6 @@
 
         .hidden { display: none !important; }
 
-        /* Custom Scrollbar */
         #lb-list::-webkit-scrollbar { width: 4px; }
         #lb-list::-webkit-scrollbar-track { background: transparent; }
         #lb-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
@@ -175,7 +174,7 @@
         </div>
     </div>
 
-    <!-- Registration -->
+    <!-- Registration Form -->
     <div id="registration-modal" class="modal glass interactive px-10 py-12">
         <h2 class="text-3xl font-black mb-1 italic tracking-tighter uppercase">The Optibus Game</h2>
         <p class="mb-10 text-sm text-gray-400">Exhibition Challenge: Optimize the Gridlock</p>
@@ -190,7 +189,7 @@
             <label class="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-2 block ml-1">Work Email</label>
             <input type="email" id="reg-email" placeholder="john@company.com" required>
             
-            <button type="submit" class="btn mt-4">Begin Optimization</button>
+            <button type="submit" class="btn mt-4" id="reg-btn">Begin Optimization</button>
         </form>
     </div>
 
@@ -204,9 +203,7 @@
                 <h3 class="text-xs uppercase tracking-widest font-bold text-cyan-400">Exhibition Leaderboard</h3>
                 <span class="text-[10px] opacity-40">Live Rankings</span>
             </div>
-            <div id="lb-list" class="max-h-48 overflow-y-auto pr-2">
-                <!-- Scores injected here -->
-            </div>
+            <div id="lb-list" class="max-h-48 overflow-y-auto pr-2"></div>
         </div>
         
         <button class="btn" onclick="window.resetGame()">New Route</button>
@@ -222,30 +219,22 @@
     <canvas id="gameCanvas"></canvas>
 
     <script type="module">
-        import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
-        import { getFirestore, collection, addDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+        // Using consistent Firebase version for all imports
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        <script type="module">
-  // Import the functions you need from the SDKs you need
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-app.js";
-  // TODO: Add SDKs for Firebase products that you want to use
-  // https://firebase.google.com/docs/web/setup#available-libraries
+        // Your provided Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyA49is3JSblFjx6NZBjZnVRn134tlgJ4ps",
+            authDomain: "growthbusgame.firebaseapp.com",
+            projectId: "growthbusgame",
+            storageBucket: "growthbusgame.firebasestorage.app",
+            messagingSenderId: "140601102220",
+            appId: "1:140601102220:web:c9bb33512e52dd6f84d0a9"
+        };
 
-  // Your web app's Firebase configuration
-  const firebaseConfig = {
-    apiKey: "AIzaSyA49is3JSblFjx6NZBjZnVRn134tlgJ4ps",
-    authDomain: "growthbusgame.firebaseapp.com",
-    projectId: "growthbusgame",
-    storageBucket: "growthbusgame.firebasestorage.app",
-    messagingSenderId: "140601102220",
-    appId: "1:140601102220:web:c9bb33512e52dd6f84d0a9"
-  };
-
-  // Initialize Firebase
-  const app = initializeApp(firebaseConfig);
-</script>
-
+        // Initialize Firebase services
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
@@ -264,39 +253,43 @@
             bg: '#0d0628' 
         };
 
-        // --- Lead Capture & Leaderboard Logic ---
+        // --- Auth & Real-time Leaderboard Listener ---
         const initAuth = async () => {
-            // No custom token needed for stand-alone deployment
-            await signInAnonymously(auth);
+            try {
+                await signInAnonymously(auth);
+            } catch (e) {
+                console.error("Auth error:", e);
+            }
         };
         initAuth();
 
         onAuthStateChanged(auth, u => { 
             currentUser = u; 
             if(u) {
+                // Listen to leaderboard updates
                 const lbRef = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
                 onSnapshot(lbRef, s => {
                     leaderboard = s.docs.map(d => d.data())
                         .sort((a,b) => b.score - a.score)
                         .slice(0, 10);
-                    updateLB();
-                });
+                    updateLBUI();
+                }, err => console.error("Snapshot error:", err));
             }
         });
 
-        const updateLB = () => {
+        const updateLBUI = () => {
             const list = document.getElementById('lb-list');
             if(!list) return;
             list.innerHTML = leaderboard.map((e, i) => `
                 <div class="leaderboard-row ${e.email === userData.email ? 'text-cyan-400 font-bold' : 'text-gray-200'}">
                     <span class="opacity-40 text-[10px]">#${i+1}</span>
-                    <span class="truncate pr-4">${e.name} <span class="opacity-50 text-[10px] uppercase ml-1">${e.company}</span></span>
+                    <span class="truncate pr-4">${e.name} <span class="opacity-50 text-[9px] uppercase ml-1">${e.company}</span></span>
                     <span class="text-right font-mono text-xs">${e.score}</span>
                 </div>
-            `).join('') || '<div class="text-sm opacity-30 py-6">No data yet.</div>';
+            `).join('') || '<div class="text-sm opacity-30 py-6">No records yet.</div>';
         };
 
-        // --- Game Engine ---
+        // --- Game Bus Logic ---
         class Bus {
             constructor(id, x, y, len, ori, col, isT = false) {
                 Object.assign(this, {id, x, y, len, ori, col, isT, rx: x, ry: y});
@@ -307,7 +300,6 @@
                 let pw = (this.ori === 'h' ? this.len * sz : sz) - pad * 2, ph = (this.ori === 'v' ? this.len * sz : sz) - pad * 2;
                 
                 ctx.save();
-                
                 if (this.isT) {
                     ctx.shadowColor = 'rgba(255, 209, 0, 0.6)';
                     ctx.shadowBlur = isS ? 30 : 20;
@@ -333,6 +325,15 @@
                 } else {
                     ctx.beginPath(); ctx.arc(px + pw*0.25, py + ph - dotOff, dotR, 0, Math.PI*2); ctx.fill();
                     ctx.beginPath(); ctx.arc(px + pw*0.75, py + ph - dotOff, dotR, 0, Math.PI*2); ctx.fill();
+                }
+
+                if(this.isT) {
+                    ctx.fillStyle = '#ffffff';
+                    let cx = px + pw/2, cy = py + ph/2, s = 10;
+                    ctx.beginPath();
+                    ctx.moveTo(cx + s*0.2, cy - s); ctx.lineTo(cx - s*0.4, cy + s*0.1); ctx.lineTo(cx - s*0.1, cy + s*0.1);
+                    ctx.lineTo(cx - s*0.3, cy + s); ctx.lineTo(cx + s*0.4, cy - s*0.1); ctx.lineTo(cx + s*0.1, cy - s*0.1);
+                    ctx.fill();
                 }
 
                 if(isS) { ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.stroke(); }
@@ -407,7 +408,8 @@
                 if(canM(selectedBus, gx, selectedBus.y)) { selectedBus.rx = nx; selectedBus.x = gx; }
                 if(selectedBus.isT && selectedBus.x >= 5) {
                     gameState='win'; document.getElementById('win-modal').classList.remove('hidden');
-                    if(currentUser) addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard'), { ...userData, score: Math.floor(timeLeft*100), timestamp: Date.now() });
+                    const score = Math.floor(timeLeft*100);
+                    if(currentUser) addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard'), { ...userData, score: score, timestamp: Date.now() });
                 }
             } else {
                 let ny = (p.y-oy-dragOffset)/sz, gy = Math.round(Math.max(0, Math.min(6-selectedBus.len, ny)));
