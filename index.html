@@ -219,7 +219,6 @@
     <canvas id="gameCanvas"></canvas>
 
     <script type="module">
-        // Using consistent Firebase version for all imports
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
@@ -234,7 +233,6 @@
             appId: "1:140601102220:web:c9bb33512e52dd6f84d0a9"
         };
 
-        // Initialize Firebase services
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
@@ -243,35 +241,19 @@
         let currentUser = null, userData = {}, leaderboard = [];
         let gameState = 'start', timeLeft = 60, lastTime = 0, buses = [], selectedBus = null, isDragging = false, dragOffset = 0;
 
-        const colors = { 
-            target: '#ffd100', 
-            b1: '#00aaff', 
-            b2: '#9d50bb', 
-            b3: '#f06292', 
-            b4: '#f57c00', 
-            b5: '#4361EE', 
-            bg: '#0d0628' 
-        };
+        const colors = { target: '#ffd100', b1: '#00aaff', b2: '#9d50bb', b3: '#f06292', b4: '#f57c00', b5: '#4361EE', bg: '#0d0628' };
 
-        // --- Auth & Real-time Leaderboard Listener ---
         const initAuth = async () => {
-            try {
-                await signInAnonymously(auth);
-            } catch (e) {
-                console.error("Auth error:", e);
-            }
+            try { await signInAnonymously(auth); } catch (e) { console.error("Auth error:", e); }
         };
         initAuth();
 
         onAuthStateChanged(auth, u => { 
             currentUser = u; 
             if(u) {
-                // Listen to leaderboard updates
                 const lbRef = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
                 onSnapshot(lbRef, s => {
-                    leaderboard = s.docs.map(d => d.data())
-                        .sort((a,b) => b.score - a.score)
-                        .slice(0, 10);
+                    leaderboard = s.docs.map(d => d.data()).sort((a,b) => b.score - a.score).slice(0, 10);
                     updateLBUI();
                 }, err => console.error("Snapshot error:", err));
             }
@@ -289,7 +271,6 @@
             `).join('') || '<div class="text-sm opacity-30 py-6">No records yet.</div>';
         };
 
-        // --- Game Bus Logic ---
         class Bus {
             constructor(id, x, y, len, ori, col, isT = false) {
                 Object.assign(this, {id, x, y, len, ori, col, isT, rx: x, ry: y});
@@ -301,21 +282,14 @@
                 
                 ctx.save();
                 if (this.isT) {
-                    ctx.shadowColor = 'rgba(255, 209, 0, 0.6)';
-                    ctx.shadowBlur = isS ? 30 : 20;
+                    ctx.shadowColor = 'rgba(255, 209, 0, 0.6)'; ctx.shadowBlur = isS ? 30 : 20;
                 } else {
-                    ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
-                    ctx.shadowBlur = isS ? 20 : 10;
+                    ctx.shadowColor = 'rgba(0, 0, 0, 0.5)'; ctx.shadowBlur = isS ? 20 : 10;
                 }
                 ctx.shadowOffsetY = isS ? 8 : 4;
 
                 ctx.beginPath(); ctx.roundRect(px, py, pw, ph, r); ctx.fillStyle = 'rgba(20, 15, 45, 0.9)'; ctx.fill();
-                
-                ctx.shadowBlur = 0;
-                ctx.shadowOffsetY = 0;
-                ctx.strokeStyle = this.col;
-                ctx.lineWidth = 3;
-                ctx.stroke();
+                ctx.shadowBlur = 0; ctx.shadowOffsetY = 0; ctx.strokeStyle = this.col; ctx.lineWidth = 3; ctx.stroke();
 
                 ctx.fillStyle = '#ffffff';
                 const dotR = 2.5, dotOff = 8;
@@ -335,7 +309,6 @@
                     ctx.lineTo(cx - s*0.3, cy + s); ctx.lineTo(cx + s*0.4, cy - s*0.1); ctx.lineTo(cx + s*0.1, cy - s*0.1);
                     ctx.fill();
                 }
-
                 if(isS) { ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.stroke(); }
                 ctx.restore();
             }
@@ -389,7 +362,8 @@
         const getP = e => ({ x: (e.touches?.[0]?.clientX || e.clientX), y: (e.touches?.[0]?.clientY || e.clientY) });
         const canM = (b, nx, ny) => !buses.some(o => o.id !== b.id && nx < o.x + (o.ori==='h'?o.len:1) && nx + (b.ori==='h'?b.len:1) > o.x && ny < o.y + (o.ori==='v'?o.len:1) && ny + (b.ori==='v'?b.len:1) > o.y);
         
-        window.addEventListener('mousedown', e => {
+        // --- Event Handlers (With Cleanup) ---
+        const handleStart = e => {
             if(gameState!=='playing') return;
             let p = getP(e), sz = Math.min(canvas.width, canvas.height)*0.7/6, ox = (canvas.width-sz*6)/2, oy = (canvas.height-sz*6)/2;
             selectedBus = buses.find(b => {
@@ -397,9 +371,9 @@
                 return p.x>=bx && p.x<=bx+bw && p.y>=by && p.y<=by+bh;
             });
             if(selectedBus) { isDragging = true; dragOffset = selectedBus.ori==='h' ? p.x - (ox+selectedBus.x*sz) : p.y - (oy+selectedBus.y*sz); }
-        });
+        };
 
-        window.addEventListener('mousemove', e => {
+        const handleMove = e => {
             if(!isDragging || !selectedBus) return;
             e.preventDefault();
             let p = getP(e), sz = Math.min(canvas.width, canvas.height)*0.7/6, ox = (canvas.width-sz*6)/2, oy = (canvas.height-sz*6)/2;
@@ -407,22 +381,44 @@
                 let nx = (p.x-ox-dragOffset)/sz, gx = Math.round(Math.max(0, Math.min(6-selectedBus.len+(selectedBus.isT?1.5:0), nx)));
                 if(canM(selectedBus, gx, selectedBus.y)) { selectedBus.rx = nx; selectedBus.x = gx; }
                 if(selectedBus.isT && selectedBus.x >= 5) {
-                    if (gameState !== 'win') { // PREVENT MULTIPLE SUBMISSIONS
+                    if (gameState !== 'win') { // Prevent double-submission
                         gameState='win'; 
                         document.getElementById('win-modal').classList.remove('hidden');
                         const score = Math.floor(timeLeft*100);
-                        if(currentUser) addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard'), { ...userData, score: score, timestamp: Date.now() });
+                        if(currentUser) {
+                            addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard'), { 
+                                ...userData, score: score, timestamp: Date.now() 
+                            }).catch(err => console.error("Error saving score:", err));
+                        }
                     }
                 }
             } else {
                 let ny = (p.y-oy-dragOffset)/sz, gy = Math.round(Math.max(0, Math.min(6-selectedBus.len, ny)));
                 if(canM(selectedBus, selectedBus.x, gy)) { selectedBus.ry = ny; selectedBus.y = gy; }
             }
-        });
+        };
 
-        window.addEventListener('mouseup', () => { if(selectedBus){ selectedBus.rx=selectedBus.x; selectedBus.ry=selectedBus.y; } isDragging=false; selectedBus=null; });
-        window.addEventListener('touchstart', e => { if(gameState==='playing') e.preventDefault(); }, {passive:false});
-        window.addEventListener('touchmove', e => { if(gameState==='playing') e.preventDefault(); }, {passive:false});
+        const handleEnd = () => { if(selectedBus){ selectedBus.rx=selectedBus.x; selectedBus.ry=selectedBus.y; } isDragging=false; selectedBus=null; };
+
+        // Clean up old listeners if they exist (Fixes duplication in dev/preview)
+        if (window._hS) window.removeEventListener('mousedown', window._hS);
+        if (window._hS) window.removeEventListener('touchstart', window._hS);
+        if (window._hM) window.removeEventListener('mousemove', window._hM);
+        if (window._hM) window.removeEventListener('touchmove', window._hM);
+        if (window._hE) window.removeEventListener('mouseup', window._hE);
+        if (window._hE) window.removeEventListener('touchend', window._hE);
+
+        window._hS = handleStart;
+        window._hM = handleMove;
+        window._hE = handleEnd;
+
+        window.addEventListener('mousedown', handleStart);
+        window.addEventListener('touchstart', handleStart, {passive: false});
+        window.addEventListener('mousemove', handleMove);
+        window.addEventListener('touchmove', handleMove, {passive: false});
+        window.addEventListener('mouseup', handleEnd);
+        window.addEventListener('touchend', handleEnd);
+
         window.addEventListener('resize', resize); resize(); requestAnimationFrame(update);
     </script>
 </body>
